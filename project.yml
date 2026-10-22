@@ -23,8 +23,6 @@ targets:
     deploymentTarget: "14.0"
     sources:
       - path: Sources
-      - path: Resources/web
-        type: folder
       - path: Resources/Assets.xcassets
         type: file
     # ★ Info.plist 由 XcodeGen 生成，properties 里的键会写进去
