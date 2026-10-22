@@ -1,0 +1,89 @@
+name: Build Unsigned IPA
+
+on:
+  push:
+    branches: [ main, master ]
+  workflow_dispatch:
+
+jobs:
+  build:
+    runs-on: macos-14
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Show environment
+        run: |
+          xcodebuild -version
+          sw_vers
+
+      - name: Install XcodeGen
+        run: |
+          brew install xcodegen
+          xcodegen --version
+
+      - name: Generate Xcode project
+        working-directory: XianyuLite
+        run: |
+          xcodegen generate
+          ls -la
+
+      - name: Build (unsigned)
+        working-directory: XianyuLite
+        run: |
+          set -o pipefail
+          xcodebuild \
+            -project XianyuLite.xcodeproj \
+            -scheme XianyuLite \
+            -configuration Release \
+            -sdk iphoneos \
+            -derivedDataPath build \
+            CODE_SIGN_IDENTITY="" \
+            CODE_SIGNING_REQUIRED=NO \
+            CODE_SIGNING_ALLOWED=NO \
+            ONLY_ACTIVE_ARCH=NO \
+            ARCHS=arm64 \
+            build | xcpretty || xcodebuild \
+              -project XianyuLite.xcodeproj \
+              -scheme XianyuLite \
+              -configuration Release \
+              -sdk iphoneos \
+              -derivedDataPath build \
+              CODE_SIGN_IDENTITY="" \
+              CODE_SIGNING_REQUIRED=NO \
+              CODE_SIGNING_ALLOWED=NO \
+              ONLY_ACTIVE_ARCH=NO \
+              ARCHS=arm64 \
+              build
+
+      - name: Verify .app built
+        working-directory: XianyuLite
+        run: |
+          find build -name "*.app" -maxdepth 5
+          APP=$(find build -name "XianyuLite.app" -maxdepth 5 | head -1)
+          echo "APP=$APP" >> $GITHUB_ENV
+          ls -la "$APP"
+          echo "--- web 目录 ---"
+          ls -la "$APP/web" | head -10
+          echo "--- 文件数 ---"
+          find "$APP/web" -type f | wc -l
+
+      - name: Package IPA
+        working-directory: XianyuLite
+        run: |
+          set -e
+          mkdir -p Payload
+          cp -R "$APP" Payload/
+          # 用 ad-hoc 签名，TrollStore / 越狱设备可装
+          codesign -f -s - --deep "Payload/XianyuLite.app" || true
+          zip -qry XianyuLite-unsigned.ipa Payload
+          ls -lh XianyuLite-unsigned.ipa
+          unzip -l XianyuLite-unsigned.ipa | head -5
+          unzip -l XianyuLite-unsigned.ipa | tail -3
+
+      - name: Upload IPA
+        uses: actions/upload-artifact@v4
+        with:
+          name: XianyuLite-ipa
+          path: XianyuLite/XianyuLite-unsigned.ipa
+          retention-days: 30

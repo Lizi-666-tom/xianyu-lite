@@ -1,0 +1,167 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no,viewport-fit=cover" />
+  <meta name="apple-mobile-web-app-capable" content="yes" />
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+  <title>鱼小铺 · 工作台（离线复现）</title>
+  <link rel="icon" href="data:," />
+
+  <!-- ========================================================================
+       预取「小铺数据」页的全部资源
+       ------------------------------------------------------------------------
+       点「查看完整数据」时 index.html 首屏要等 1.1MB 的 operate-compass.js
+       下载+解析，本机手机会白屏约 1 秒。这里在鱼小铺页空闲时先把它们拉进
+       浏览器缓存，点过去就是秒开。
+       React / ReactDOM 两页用的 URL 相同（?v=8），已经天然复用，不用重复预取。
+       ======================================================================== -->
+  <link rel="prefetch" href="./index.html" as="document" />
+  <link rel="prefetch" href="./assets/operate-compass.js?v=8" as="script" />
+  <link rel="prefetch" href="./assets/operate-compass.css?v=8" as="style" />
+  <link rel="prefetch" href="./assets/local-overrides.css?v=22" as="style" />
+  <link rel="prefetch" href="./mock/daily-data.js?v=15" as="script" />
+  <link rel="prefetch" href="./mock/data.js?v=15" as="script" />
+  <link rel="prefetch" href="./mock/mtop-mock.js?v=9" as="script" />
+
+  <!-- 官方样式（字体/图片指向 CDN，离线时会 fallback 到系统字体） -->
+  <link rel="stylesheet" href="./assets/workbench.css?v=22" />
+
+  <style>
+    html, body { margin: 0; padding: 0; background: #f2f3f5; }
+    /* 调试面板：挂在 <html> 上（不是 body，因为 React 会接管整个 body） */
+    #dsh-diag {
+      display: none;
+      position: fixed; left: 0; bottom: 0; right: 0; z-index: 99999;
+      max-height: 40vh; overflow: auto; margin: 0;
+      background: rgba(0, 0, 0, .88); color: #7CFC98;
+      font: 11px/1.45 Consolas, Menlo, monospace;
+      padding: 6px 8px; white-space: pre-wrap;
+    }
+    body.diag-on ~ #dsh-diag, html.diag-on #dsh-diag { display: block; }
+  </style>
+
+  <!-- ========================================================================
+       离线复现补丁（官方 bundle 原封不动，这里只补它落地不到浏览器的那部分）
+       ------------------------------------------------------------------------
+       ① 留资卡轮播（组件 rmt → Swiper，CSS 前缀 web--swiper--）：宽高实测已经是
+          718rpx×140rpx = 396.3×77.3pt（Image 组件自带 rpx→px 转换兜住了），
+          但 bundle 写在 swiper 容器内联样式里的 borderRadius:"24rpx" 是浏览器不认的
+          单位，整条会被丢掉 → 渲染成直角。这里补 24rpx = 3.2vw 圆角 + 溢出裁切。
+       ② 热门工具图标：bundle 里 item 的 <img> 没有任何尺寸约束，默认按
+          Image 组件的 9.6vw 兜底渲染（≈35.3pt），真机是 96px@3x = 32pt，
+          这里钉成 32px，和截图一致。
+       ======================================================================== -->
+  <style id="moyu-local-overrides">
+    /* ① 留资卡轮播圆角 + 裁切 */
+    [class*="web--swiper--"] {
+      border-radius: 3.2vw !important;
+      overflow: hidden !important;
+    }
+    [class*="web--swiper--"] .swiper-slide img {
+      display: block !important;
+      border-radius: 3.2vw !important;
+    }
+
+    /* ② 热门工具图标 32pt（96px@3x） */
+    .UtilTab--item--yPBR9nk img {
+      width: 32px !important;
+      height: 32px !important;
+      object-fit: contain !important;
+      display: block !important;
+    }
+
+    /* ③ 热门工具的行距微调（真机实测：图标到标题 39.3pt、行间距 72pt；
+          官方 CSS 给的是 38.4pt / 69.5pt，差 1~2.5pt，这里补回来）
+          图标 32 + 标题 margin-top 5.2 + 行高 17.66 = 54.86，+ 行间距 17.16 = 72.02 ✓ */
+    .UtilTab--item-title--fF4c6RH {
+      margin-top: 5.2px !important;
+    }
+    .UtilTab--tab-content--f8lxhgm {
+      grid-row-gap: 17.16px !important;
+    }
+
+    /* ④ 顶部导航标题：官方是「滚动联动」——顶部 opacity:0（不显示），
+          滚动后才浮现。真机截图已证实这一点（第一屏无标题、第二屏才出现「‹ 鱼小铺工作台」），
+          所以这里**不要**强制显示，保持官方行为即可。 */
+  </style>
+</head>
+
+<body>
+  
+  <script src="./assets/safe-area.js?v=3"></script>
+<!-- ① React / ReactDOM 必须先是全局变量（bundle 里是 externals） -->
+  <script src="./assets/react.production.min.js?v=8"></script>
+  <script src="./assets/react-dom.production.min.js?v=8"></script>
+
+  <!-- ② mock 数据 + mtop 拦截层 + 环境桩
+       daily-data.js 必须排在 wb-data.js 前面：它是两页共用的「按日数据源」，
+       「小铺昨日数据」那 4 个指标就是从它里面昨天那一段派生的 -->
+  <script src="./mock/daily-data.js?v=15"></script>
+  <script src="./mock/wb-data.js?v=15"></script>
+  <script src="./mock/wb-mtop.js?v=6"></script>
+
+  <!-- ③ 错误采集 + 调试面板（必须在 bundle 之前装好；面板挂到 <html> 上才不会被 React 冲掉） -->
+  <script>
+    (function () {
+      var q = new URLSearchParams(location.search);
+      var diagOn = q.get('diag') === '1';
+      if (diagOn) document.documentElement.classList.add('diag-on');
+
+      var errs = [];
+      window.__ERRS__ = errs;
+      window.addEventListener('error', function (e) {
+        var st = (e.error && e.error.stack) ? String(e.error.stack).split('\n').slice(0, 8).join(' <- ') : '';
+        errs.push('[error] ' + (e.message || e) + ' @' + (e.filename || '') + ':' + (e.lineno || '') + ' ' + st);
+      });
+      window.addEventListener('unhandledrejection', function (e) {
+        var r = e.reason;
+        errs.push('[reject] ' + ((r && (r.stack || r.message)) || String(r)).slice(0, 400));
+      });
+      var oErr = console.error;
+      console.error = function () {
+        try { errs.push('[console.error] ' + [].slice.call(arguments).map(function (a) {
+          return typeof a === 'string' ? a : (a && a.message) || String(a);
+        }).join(' ').slice(0, 400)); } catch (_) { }
+        oErr.apply(console, arguments);
+      };
+
+      window.__diagDump__ = function () {
+        var body = document.body;
+        var txt = (body.innerText || '').replace(/\n{2,}/g, '\n').slice(0, 4000);
+        var payload = {
+          ua: navigator.userAgent,
+          calls: (window.__WB_CALLS__ || []).slice(0, 60),
+          reqs: (window.__WB_REQS__ || []).slice(0, 20),
+          errors: errs.slice(0, 30),
+          rootChildren: body.children.length,
+          htmlLen: (body.innerHTML || '').length,
+          textSample: txt
+        };
+        return payload;
+      };
+
+      setTimeout(function () {
+        var pre = document.getElementById('dsh-diag');
+        if (!pre) {
+          pre = document.createElement('pre');
+          pre.id = 'dsh-diag';
+          document.documentElement.appendChild(pre);
+        }
+        try { pre.textContent = JSON.stringify(window.__diagDump__(), null, 1); } catch (e) { pre.textContent = 'DIAG_FAIL ' + e; }
+      }, 6000);
+    })();
+  </script>
+
+  <!-- ④ 页面主 bundle：它自己会 createRoot(document.body)，所以这里先清掉 body 里已有的节点 -->
+  <script>document.body.innerHTML = '';</script>
+  <script src="./assets/workbench.js?v=5"></script>
+
+  <!-- ⑤ 两页导航（鱼小铺 ⇄ 小铺数据）。挂在 <html> 上，不受 body 被接管影响 -->
+  <script>window.MOYU_PAGE = 'shop';</script>
+  <script src="./assets/nav.js?v=103"></script>
+</body>
+
+</html>
+
