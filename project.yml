@@ -5,17 +5,18 @@ options:
     iOS: "14.0"
   createIntermediateGroups: true
   groupSortPosition: top
+  # ★ 关键：runner 的 Xcode 是 15.4，不支持新版项目格式(objectVersion 77)
+  #   指定 xcodeVersion 让 XcodeGen 生成兼容格式
+  xcodeVersion: "15.4"
 
 settings:
   base:
     SWIFT_VERSION: "5.0"
-    DEVELOPMENT_TEAM: ""
     CODE_SIGN_IDENTITY: ""
     CODE_SIGNING_REQUIRED: "NO"
     CODE_SIGNING_ALLOWED: "NO"
     ENABLE_BITCODE: "NO"
     ONLY_ACTIVE_ARCH: "NO"
-    ARCHS: "arm64"
 
 targets:
   XianyuLite:
@@ -41,5 +42,3 @@ targets:
         IPHONEOS_DEPLOYMENT_TARGET: "14.0"
         MARKETING_VERSION: "1.0.0"
         CURRENT_PROJECT_VERSION: "1"
-        SWIFT_OPTIMIZATION_LEVEL: "-Onone"
-        VALIDATE_PRODUCT: "NO"
