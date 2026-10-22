@@ -7,7 +7,8 @@ on:
 
 jobs:
   build:
-    runs-on: macos-14
+    # Xcode 15 不支持 objectVersion 77，用 macos-15（Xcode 16）跑
+    runs-on: macos-15
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -16,7 +17,6 @@ jobs:
         run: |
           xcodebuild -version
           sw_vers
-          echo "--- 仓库根 ---"
           ls -la
 
       - name: Install XcodeGen
@@ -27,13 +27,23 @@ jobs:
       - name: Generate Xcode project
         run: |
           xcodegen generate
-          echo "--- 生成结果 ---"
-          ls -la
-          echo "--- 项目格式(objectVersion) ---"
+          echo "--- objectVersion ---"
           grep -m1 objectVersion XianyuLite.xcodeproj/project.pbxproj || true
           echo "--- xcodebuild 版本 ---"
           xcodebuild -version
-          echo "--- scheme 列表 ---"
+
+      - name: Ensure project format compatible
+        run: |
+          set -e
+          OV=$(grep -m1 'objectVersion = ' XianyuLite.xcodeproj/project.pbxproj | tr -dc '0-9' || echo "")
+          echo "生成的项目格式: $OV"
+          if [ "$OV" = "77" ]; then
+            echo "降级到 56（兼容 Xcode 15）"
+            sed -i '' 's/objectVersion = 77;/objectVersion = 56;/' XianyuLite.xcodeproj/project.pbxproj
+          fi
+          echo "--- 最终格式 ---"
+          grep -m1 objectVersion XianyuLite.xcodeproj/project.pbxproj || true
+          echo "--- 验证可读 ---"
           xcodebuild -project XianyuLite.xcodeproj -list
 
       - name: Build (unsigned)
@@ -54,6 +64,7 @@ jobs:
       - name: Verify .app built
         run: |
           APP=$(find build -name "XianyuLite.app" -maxdepth 6 | head -1)
+          if [ -z "$APP" ]; then echo "没找到 .app"; exit 1; fi
           echo "APP=$APP" >> $GITHUB_ENV
           ls -la "$APP"
           echo "--- web 目录 ---"
