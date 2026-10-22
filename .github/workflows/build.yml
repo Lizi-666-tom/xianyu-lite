@@ -27,8 +27,13 @@ jobs:
       - name: Generate Xcode project
         run: |
           xcodegen generate
+          echo "--- 生成结果 ---"
           ls -la
-          echo "--- scheme ---"
+          echo "--- 项目格式(objectVersion) ---"
+          grep -m1 objectVersion XianyuLite.xcodeproj/project.pbxproj || true
+          echo "--- xcodebuild 版本 ---"
+          xcodebuild -version
+          echo "--- scheme 列表 ---"
           xcodebuild -project XianyuLite.xcodeproj -list
 
       - name: Build (unsigned)
@@ -44,8 +49,7 @@ jobs:
             CODE_SIGNING_REQUIRED=NO \
             CODE_SIGNING_ALLOWED=NO \
             ONLY_ACTIVE_ARCH=NO \
-            ARCHS=arm64 \
-            build 2>&1 | tee build.log | tail -60
+            build 2>&1 | tee build.log | tail -80
 
       - name: Verify .app built
         run: |
@@ -83,3 +87,4 @@ jobs:
           name: build-log
           path: build.log
           retention-days: 7
+          if-no-files-found: ignore
